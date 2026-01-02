@@ -10,7 +10,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 git branch: 'main',
-                    url: ''
+                    url: 'https://github.com/Kunal1782001/springboot-github-pipeline.git'
             }
         }
 

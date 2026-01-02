@@ -1,17 +1,19 @@
 pipeline {
     agent any
 
+    tools {
+        maven 'Maven'
+    }
+
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/Kunal1782001/springboot-github-pipeline.git'
+                checkout scm
             }
         }
 
         stage('Build') {
             steps {
-                // Use bat for Windows
                 bat 'mvn clean package -DskipTests'
             }
         }
@@ -23,4 +25,5 @@ pipeline {
         }
     }
 }
+
 

@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven'   // Must match the name configured in Jenkins Global Tool Configuration
-        jdk 'JDK17'     // Must match JDK configured in Jenkins
+        maven 'Maven'
+        jdk 'JDK17'
     }
 
     stages {
@@ -19,17 +19,20 @@ pipeline {
                 bat 'mvn clean package'
             }
         }
+
+        stage('Create ZIP') {
+            steps {
+                bat '''
+                if exist build.zip del build.zip
+                powershell Compress-Archive -Path target\\* -DestinationPath build.zip
+                '''
+            }
+        }
     }
 
     post {
         always {
-            // Archive the generated JAR so it can be downloaded from Jenkins
-            archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: false
+            archiveArtifacts artifacts: 'build.zip', allowEmptyArchive: false
         }
     }
 }
-
-
-
-
-

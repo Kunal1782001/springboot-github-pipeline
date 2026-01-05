@@ -3,27 +3,24 @@ pipeline {
 
     tools {
         maven 'Maven'
+        jdk 'JDK17'
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                checkout scm
+                git branch: 'main',
+                    url: 'https://github.com/<your-username>/<your-repo>.git'
             }
         }
 
         stage('Build') {
             steps {
-                bat 'mvn clean package -DskipTests'
-            }
-        }
-
-        stage('Archive JAR') {
-            steps {
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                sh 'mvn clean package'
             }
         }
     }
 }
+
 
 

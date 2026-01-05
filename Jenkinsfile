@@ -2,31 +2,51 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven'   // Must match the name configured in Jenkins Global Tool Configuration
-        
-        jdk 'JDK17'     // Must match JDK configured in Jenkins
+        maven 'Maven'
+        jdk 'JDK17'
+    }
+
+    environment {
+        TOMCAT_HOME = 'C:\\apache-tomcat-10.1.18'
+        WAR_NAME = 'springboot-github-pipeline.war'
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/Kunal1782001/springboot-github-pipeline.git'
-                
             }
         }
 
-        stage('Build') {
+        stage('Build WAR') {
             steps {
                 bat 'mvn clean package'
+            }
+        }
+
+        stage('Deploy to Tomcat') {
+            steps {
+                bat """
+                echo Stopping Tomcat...
+                "%TOMCAT_HOME%\\bin\\shutdown.bat"
+
+                timeout /t 10
+
+                echo Copying WAR to Tomcat webapps...
+                copy /Y target\\*.war "%TOMCAT_HOME%\\webapps\\%WAR_NAME%"
+
+                echo Starting Tomcat...
+                "%TOMCAT_HOME%\\bin\\startup.bat"
+                """
             }
         }
     }
 
     post {
         always {
-            // Archive the generated JAR so it can be downloaded from Jenkins
-            archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: false
+            archiveArtifacts artifacts: 'target/*.war', allowEmptyArchive: false
         }
     }
 }

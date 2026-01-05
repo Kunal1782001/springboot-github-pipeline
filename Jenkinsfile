@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        TOMCAT_HOME = 'C:\Program Files\Apache Software Foundation\Tomcat 10.1'
+        TOMCAT_HOME = 'C:/Program Files/Apache Software Foundation/Tomcat 10.1'
         WAR_NAME = 'springboot-github-pipeline.war'
     }
 
@@ -29,16 +29,16 @@ pipeline {
         stage('Deploy to Tomcat') {
             steps {
                 bat """
-                echo Stopping Tomcat...
-                "%TOMCAT_HOME%\\bin\\shutdown.bat"
+                echo ===== STOPPING TOMCAT =====
+                "%TOMCAT_HOME%/bin/shutdown.bat"
 
-                timeout /t 10
+                cmd /c timeout /t 10
 
-                echo Copying WAR to Tomcat webapps...
-                copy /Y target\\*.war "%TOMCAT_HOME%\\webapps\\%WAR_NAME%"
+                echo ===== DEPLOYING WAR =====
+                copy /Y target\\*.war "%TOMCAT_HOME%/webapps/%WAR_NAME%"
 
-                echo Starting Tomcat...
-                "%TOMCAT_HOME%\\bin\\startup.bat"
+                echo ===== STARTING TOMCAT =====
+                "%TOMCAT_HOME%/bin/startup.bat"
                 """
             }
         }

@@ -28,6 +28,7 @@ public class ColumnConfigController {
 
     @GetMapping("/{tableId}")
     public List<ColumnResponseDto> getColumns(@PathVariable Long tableId) {
+        //this is my updated file
         return service.getByTable(tableId);
     }
     

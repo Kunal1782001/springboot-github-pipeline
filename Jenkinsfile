@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        TOMCAT_HOME = 'C:\\apache-tomcat-10.1.18'
+        TOMCAT_HOME = 'C:\Program Files\Apache Software Foundation\Tomcat 10.1'
         WAR_NAME = 'springboot-github-pipeline.war'
     }
 

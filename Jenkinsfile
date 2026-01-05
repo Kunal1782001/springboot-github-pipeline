@@ -2,13 +2,12 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven'
-        jdk 'JDK17'
+        maven 'Maven'     // Jenkins → Global Tool Configuration
+        jdk 'JDK17'       // Jenkins → Global Tool Configuration
     }
 
     environment {
-        TOMCAT_HOME = 'C:/Program Files/Apache Software Foundation/Tomcat 10.1'
-        WAR_NAME = 'springboot-github-pipeline.war'
+        CATALINA_HOME = 'C:\\Program Files\\Apache Software Foundation\\Tomcat 10.1'
     }
 
     stages {
@@ -30,15 +29,15 @@ pipeline {
             steps {
                 bat """
                 echo ===== STOPPING TOMCAT =====
-                "%TOMCAT_HOME%/bin/shutdown.bat"
+                "%CATALINA_HOME%\\bin\\shutdown.bat"
 
-                cmd /c timeout /t 10
+                timeout /t 10
 
                 echo ===== DEPLOYING WAR =====
-                copy /Y target\\*.war "%TOMCAT_HOME%/webapps/%WAR_NAME%"
+                copy /Y target\\*.war "%CATALINA_HOME%\\webapps\\"
 
                 echo ===== STARTING TOMCAT =====
-                "%TOMCAT_HOME%/bin/startup.bat"
+                "%CATALINA_HOME%\\bin\\startup.bat"
                 """
             }
         }
@@ -46,7 +45,7 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'target/*.war', allowEmptyArchive: false
+            archiveArtifacts artifacts: 'target/*.war', fingerprint: true
         }
     }
 }

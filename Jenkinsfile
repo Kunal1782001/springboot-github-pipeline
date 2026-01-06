@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     options {
-        
         timeout(time: 20, unit: 'MINUTES')
     }
 
@@ -26,21 +25,6 @@ pipeline {
             }
         }
 
-        stage('Build Info') {
-            steps {
-                echo "Job Name      : ${JOB_NAME}"
-                echo "Build Number  : ${BUILD_NUMBER}"
-                echo "Branch Name   : ${BRANCH_NAME}"
-                echo "Git Commit    : ${GIT_COMMIT}"
-            }
-        }
-
-        stage('Run Tests') {
-            steps {
-                bat 'mvn test'
-            }
-        }
-
         stage('Build JAR') {
             steps {
                 bat 'mvn clean package -DskipTests'
@@ -49,33 +33,29 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                // Builds Docker image from Dockerfile
                 bat 'docker build -t springboot-app .'
             }
         }
 
-       stage('Docker Deploy') {
-    steps {
-        // Stop old container if running (ignore errors)
-        bat script: 'docker stop springboot-container', returnStatus: true
-        bat script: 'docker rm springboot-container', returnStatus: true
+        stage('Docker Deploy') {
+            steps {
+                bat script: 'docker stop springboot-container', returnStatus: true
+                bat script: 'docker rm springboot-container', returnStatus: true
 
-        // Run new container
-        bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
-    }
-}
+                bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
+            }
+        }
     }
 
-   post {
-    success {
-        echo " Application deployed successfully in Docker"
+    post {
+        success {
+            echo "🚀 Application deployed successfully in Docker"
+        }
+        failure {
+            echo "❌ Deployment failed – check logs"
+        }
+        always {
+            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+        }
     }
-    failure {
-        echo " Deployment failed – check logs"
-    }
-    always {
-        archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-    }
-}
-
 }

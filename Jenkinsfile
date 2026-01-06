@@ -45,16 +45,22 @@ pipeline {
             }
         }
 
-        stage('Docker Deploy') {
-            steps {
-                // Stop and remove container if already running
-                bat 'docker stop springboot-container || echo Container not running'
-                bat 'docker rm springboot-container || echo Container removed'
+      stage('Docker Deploy') {
+    steps {
+        // Stop the container if it exists
+        bat '''
+        docker ps -q -f name=springboot-container > nul 2>&1
+        IF %ERRORLEVEL% EQU 0 (
+            docker stop springboot-container
+            docker rm springboot-container
+        )
+        '''
 
-                // Run the container
-                bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
-            }
-        }
+        // Run the container
+        bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
+    }
+}
+
     }
 
     post {

@@ -46,19 +46,19 @@ pipeline {
         }
 
         stage('Docker Deploy') {
-    steps {
-        // Stop & remove container safely if it exists
-        bat '''
-        FOR /F "tokens=*" %%i IN ('docker ps -aq -f name=springboot-container') DO (
-            docker stop %%i
-            docker rm %%i
-        )
-        '''
+            steps {
+                // Stop & remove container safely if it exists
+                bat '''
+                FOR /F "tokens=*" %%i IN ('docker ps -aq -f name=springboot-container') DO (
+                    docker stop %%i
+                    docker rm %%i
+                )
+                '''
 
-        // Run the container
-        bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
-    }
-}
+                // Run the container
+                bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
+            }
+        }
 
     }
 

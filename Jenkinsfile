@@ -1,22 +1,48 @@
 pipeline {
     agent any
 
+    options {
+        timeout(time: 20, unit: 'MINUTES')
+    }
+
     tools {
         maven 'Maven'
         jdk 'JDK17'
     }
 
     environment {
-        TOMCAT_HOME = 'C:\\apache-tomcat-10.1.18'
-        WAR_NAME = 'springboot-github-pipeline.war'
+        CATALINA_HOME = 'C:\\Program Files\\Apache Software Foundation\\Tomcat 10.1'
+        APP_WAR = 'ReusableComponentDemo-0.0.1-SNAPSHOT.war'
+        TOMCAT_SERVICE = 'Tomcat10'
     }
 
     stages {
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
 
         stage('Checkout') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/Kunal1782001/springboot-github-pipeline.git'
+            }
+        }
+
+        stage('Build Info') {
+            steps {
+                echo "Job Name      : ${JOB_NAME}"
+                echo "Build Number  : ${BUILD_NUMBER}"
+                echo "Branch Name   : ${BRANCH_NAME}"
+                echo "Git Commit    : ${GIT_COMMIT}"
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                bat 'mvn test'
             }
         }
 
@@ -29,24 +55,42 @@ pipeline {
         stage('Deploy to Tomcat') {
             steps {
                 bat """
-                echo Stopping Tomcat...
-                "%TOMCAT_HOME%\\bin\\shutdown.bat"
+                echo ===============================
+                echo STOPPING TOMCAT SERVICE
+                echo ===============================
+                net stop %TOMCAT_SERVICE% || echo Tomcat already stopped
 
-                timeout /t 10
+                timeout /t 5
 
-                echo Copying WAR to Tomcat webapps...
-                copy /Y target\\*.war "%TOMCAT_HOME%\\webapps\\%WAR_NAME%"
+                echo ===============================
+                echo CLEAN OLD DEPLOYMENT
+                echo ===============================
+                rmdir /S /Q "%CATALINA_HOME%\\webapps\\ReusableComponentDemo-0.0.1-SNAPSHOT" 2>nul
+                del /Q "%CATALINA_HOME%\\webapps\\%APP_WAR%" 2>nul
 
-                echo Starting Tomcat...
-                "%TOMCAT_HOME%\\bin\\startup.bat"
+                echo ===============================
+                echo COPY NEW WAR
+                echo ===============================
+                copy /Y target\\%APP_WAR% "%CATALINA_HOME%\\webapps\\"
+
+                echo ===============================
+                echo STARTING TOMCAT SERVICE
+                echo ===============================
+                net start %TOMCAT_SERVICE%
                 """
             }
         }
     }
 
     post {
+        success {
+            echo " Deployment completed successfully"
+        }
+        failure {
+            echo " Deployment failed – check logs"
+        }
         always {
-            archiveArtifacts artifacts: 'target/*.war', allowEmptyArchive: false
+            archiveArtifacts artifacts: 'target/*.war', fingerprint: true
         }
     }
 }

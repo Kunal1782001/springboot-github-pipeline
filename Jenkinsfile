@@ -67,10 +67,14 @@ pipeline {
 
     post {
         success {
+<<<<<<< HEAD
             echo " Application deployed successfully in Docker"
+=======
+            echo "✅ Application deployed successfully in Docker"
+>>>>>>> d2d0ef92395216af7efa8f6603a8a5570635420e
         }
         failure {
-            echo " Deployment failed – check logs"
+            echo "❌ Deployment failed – check logs"
         }
         always {
             archiveArtifacts artifacts: 'target/*.jar', fingerprint: true

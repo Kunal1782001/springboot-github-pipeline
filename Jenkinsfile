@@ -10,12 +10,6 @@ pipeline {
         jdk 'JDK17'
     }
 
-    environment {
-        CATALINA_HOME = 'C:\\Program Files\\Apache Software Foundation\\Tomcat 10.1'
-        APP_WAR = 'ReusableComponentDemo-0.0.1-SNAPSHOT.war'
-        TOMCAT_SERVICE = 'Tomcat10'
-    }
-
     stages {
 
         stage('Clean Workspace') {
@@ -46,51 +40,40 @@ pipeline {
             }
         }
 
-        stage('Build WAR') {
+        stage('Build JAR') {
             steps {
-                bat 'mvn clean package'
+                bat 'mvn clean package -DskipTests'
             }
         }
 
-        stage('Deploy to Tomcat') {
+        stage('Docker Build') {
             steps {
-                bat """
-                echo ===============================
-                echo STOPPING TOMCAT SERVICE
-                echo ===============================
-                net stop %TOMCAT_SERVICE% || echo Tomcat already stopped
+                // Builds Docker image from Dockerfile
+                bat 'docker build -t springboot-app .'
+            }
+        }
 
-                timeout /t 5
+        stage('Docker Deploy') {
+            steps {
+                // Stop old container if running
+                bat 'docker stop springboot-container || echo Container not running'
+                bat 'docker rm springboot-container || echo Container removed'
 
-                echo ===============================
-                echo CLEAN OLD DEPLOYMENT
-                echo ===============================
-                rmdir /S /Q "%CATALINA_HOME%\\webapps\\ReusableComponentDemo-0.0.1-SNAPSHOT" 2>nul
-                del /Q "%CATALINA_HOME%\\webapps\\%APP_WAR%" 2>nul
-
-                echo ===============================
-                echo COPY NEW WAR
-                echo ===============================
-                copy /Y target\\%APP_WAR% "%CATALINA_HOME%\\webapps\\"
-
-                echo ===============================
-                echo STARTING TOMCAT SERVICE
-                echo ===============================
-                net start %TOMCAT_SERVICE%
-                """
+                // Run new container
+                bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
             }
         }
     }
 
     post {
         success {
-            echo " Deployment completed successfully"
+            echo " Application deployed successfully in Docker"
         }
         failure {
             echo " Deployment failed – check logs"
         }
         always {
-            archiveArtifacts artifacts: 'target/*.war', fingerprint: true
+            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
         }
     }
 }

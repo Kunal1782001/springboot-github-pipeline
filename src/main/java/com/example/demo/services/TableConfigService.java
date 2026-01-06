@@ -222,6 +222,9 @@ public class TableConfigService {
 			existing.setGrouping(updatedData.getGrouping());;
 		}
 		
+		if (updatedData.getExportData() != null) {
+			existing.setExportData(updatedData.getExportData());;
+		}
 
 		return repo.save(existing);
 	}

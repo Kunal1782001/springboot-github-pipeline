@@ -35,6 +35,7 @@ public class TableConfig {
 	    
 	    private Boolean columnChooser;
 		    
+	    private Boolean exportData;
 		   
 		  
 		public TableConfig() {
@@ -48,7 +49,7 @@ public class TableConfig {
 
 		public TableConfig(Long id, String schemaName, String tableName, String displayName, Boolean isActive,
 				Boolean allowSorting, Boolean enableSearch, Boolean allowColumnReordering, Boolean showHeaderFilter,Boolean pagination,Boolean rowFilter,
-				Boolean columnChooser,Boolean grouping) {
+				Boolean columnChooser,Boolean grouping,Boolean exportData) {
 			super();
 			this.id = id;
 			this.schemaName = schemaName;
@@ -63,11 +64,28 @@ public class TableConfig {
 			this.rowFilter=rowFilter;
 			this.columnChooser=columnChooser;
 			this.grouping=grouping;
+			this.exportData= exportData;
 		}
 
 
 
 
+
+
+
+
+
+		public Boolean getExportData() {
+			return exportData;
+		}
+
+
+
+
+
+		public void setExportData(Boolean exportData) {
+			this.exportData = exportData;
+		}
 
 
 

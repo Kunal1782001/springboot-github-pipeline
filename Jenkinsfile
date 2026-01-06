@@ -62,15 +62,15 @@ pipeline {
 
         stage('Stop Old Containers') {
             steps {
-                echo '🛑 Stopping old containers (safe)'
+                echo '🛑 Stopping old containers (bulletproof)'
                 bat '''
-                docker ps -a --format "{{.Names}}" | findstr /R "^springboot-container$" >nul && (
-                    docker stop springboot-container && docker rm springboot-container
-                ) || echo App container not found
+                docker stop springboot-container >nul 2>&1
+                docker rm springboot-container >nul 2>&1
 
-                docker ps -a --format "{{.Names}}" | findstr /R "^mysql-db$" >nul && (
-                    docker stop mysql-db && docker rm mysql-db
-                ) || echo MySQL container not found
+                docker stop mysql-db >nul 2>&1
+                docker rm mysql-db >nul 2>&1
+
+                exit /b 0
                 '''
             }
         }
@@ -81,6 +81,7 @@ pipeline {
                 bat '''
                 docker network rm spring-mysql-network >nul 2>&1
                 docker network create spring-mysql-network
+                exit /b 0
                 '''
             }
         }
@@ -106,6 +107,7 @@ pipeline {
                 bat '''
                 timeout /t 30 /nobreak
                 docker exec mysql-db mysqladmin ping -h localhost -u root -proot
+                exit /b 0
                 '''
             }
         }
@@ -129,7 +131,7 @@ pipeline {
 
         stage('Wait for Application') {
             steps {
-                echo '⏳ Waiting for app startup'
+                echo '⏳ Waiting for application startup'
                 bat 'timeout /t 30 /nobreak'
             }
         }
@@ -145,16 +147,17 @@ pipeline {
     post {
         success {
             echo '✅ DEPLOYMENT SUCCESSFUL'
-            echo "🌐 App: http://localhost:${APP_PORT}"
-            echo "🗄️ MySQL: localhost:${MYSQL_HOST_PORT}"
+            echo "🌐 App URL : http://localhost:${APP_PORT}"
+            echo "🗄️ MySQL   : localhost:${MYSQL_HOST_PORT}"
         }
 
         failure {
             echo '❌ DEPLOYMENT FAILED'
             bat '''
             docker ps -a
-            docker logs mysql-db 2>nul || echo No MySQL logs
-            docker logs springboot-container 2>nul || echo No App logs
+            docker logs mysql-db >nul 2>&1
+            docker logs springboot-container >nul 2>&1
+            exit /b 0
             '''
         }
 

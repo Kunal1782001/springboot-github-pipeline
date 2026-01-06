@@ -6,8 +6,8 @@ pipeline {
     }
 
     tools {
-        maven 'Maven'
-        jdk 'JDK17'
+        maven 'Maven'  // Make sure 'Maven' is configured in Jenkins Global Tool Config
+        jdk 'JDK17'    // Make sure 'JDK17' is configured in Jenkins Global Tool Config
     }
 
     stages {
@@ -45,22 +45,20 @@ pipeline {
             }
         }
 
-      stage('Docker Deploy') {
-    steps {
-        // Stop the container if it exists
-        bat '''
-        docker ps -q -f name=springboot-container > nul 2>&1
-        IF %ERRORLEVEL% EQU 0 (
-            docker stop springboot-container
-            docker rm springboot-container
-        )
-        '''
+        stage('Docker Deploy') {
+            steps {
+                // Stop & remove container safely if it exists
+                bat '''
+                FOR /F "tokens=*" %%i IN ('docker ps -aq -f name=springboot-container') DO (
+                    docker stop %%i
+                    docker rm %%i
+                )
+                '''
 
-        // Run the container
-        bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
-    }
-}
-
+                // Run the container
+                bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
+            }
+        }
     }
 
     post {

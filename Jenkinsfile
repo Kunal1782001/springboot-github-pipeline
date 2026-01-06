@@ -19,7 +19,8 @@ pipeline {
         MYSQL_ROOT_PASSWORD = 'root'
         MYSQL_DATABASE = 'demo_reusable_component'
         APP_PORT = '8080'
-        MYSQL_PORT = '3306'
+        MYSQL_HOST_PORT = '3307'  // CHANGED: Use 3307 instead of 3306 to avoid conflict
+        MYSQL_CONTAINER_PORT = '3306'
     }
 
     stages {
@@ -71,27 +72,26 @@ pipeline {
 
         stage('Stop Old Containers') {
             steps {
-                echo '🛑 Stopping and removing old containers...'
+                echo '🛑 Stopping old containers...'
                 script {
                     bat '''
                     @echo off
-                    echo Stopping old containers...
+                    echo Stopping and removing old containers...
                     
-                    REM Stop and remove Spring Boot container
                     FOR /F "tokens=*" %%i IN ('docker ps -aq -f "name=%APP_CONTAINER%"') DO (
-                        echo Stopping container %%i...
+                        echo Stopping Spring Boot container %%i...
                         docker stop %%i 2>nul
                         docker rm %%i 2>nul
                     )
                     
-                    REM Stop and remove MySQL container
                     FOR /F "tokens=*" %%i IN ('docker ps -aq -f "name=%MYSQL_CONTAINER%"') DO (
-                        echo Stopping container %%i...
+                        echo Stopping MySQL container %%i...
                         docker stop %%i 2>nul
                         docker rm %%i 2>nul
                     )
                     
-                    echo Old containers cleaned up!
+                    timeout /t 3 /nobreak
+                    echo Cleanup complete!
                     '''
                 }
             }
@@ -103,14 +103,8 @@ pipeline {
                 script {
                     bat '''
                     @echo off
-                    REM Check if network exists, if not create it
-                    docker network inspect spring-mysql-network >nul 2>&1
-                    IF ERRORLEVEL 1 (
-                        echo Creating network...
-                        docker network create spring-mysql-network
-                    ) ELSE (
-                        echo Network already exists
-                    )
+                    docker network rm spring-mysql-network 2>nul || echo Network removed or did not exist
+                    docker network create spring-mysql-network
                     '''
                 }
             }
@@ -118,16 +112,17 @@ pipeline {
 
         stage('Deploy MySQL') {
             steps {
-                echo '🗄️ Deploying MySQL container...'
+                echo '🗄️ Deploying MySQL container on port 3307...'
                 bat """
                 docker run -d ^
                     --name %MYSQL_CONTAINER% ^
                     --network spring-mysql-network ^
                     -e MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD% ^
                     -e MYSQL_DATABASE=%MYSQL_DATABASE% ^
-                    -p %MYSQL_PORT%:%MYSQL_PORT% ^
+                    -p %MYSQL_HOST_PORT%:%MYSQL_CONTAINER_PORT% ^
                     %MYSQL_IMAGE%
                 """
+                echo "✅ MySQL will be accessible on host port ${MYSQL_HOST_PORT}"
             }
         }
 
@@ -141,10 +136,19 @@ pipeline {
                     timeout /t 30 /nobreak
                     
                     echo Checking MySQL health...
+                    set MAX_RETRIES=12
+                    set RETRY_COUNT=0
+                    
                     :LOOP
                     docker exec %MYSQL_CONTAINER% mysqladmin ping -h localhost -u root -p%MYSQL_ROOT_PASSWORD% >nul 2>&1
                     IF ERRORLEVEL 1 (
-                        echo MySQL not ready yet, waiting...
+                        set /a RETRY_COUNT+=1
+                        if %RETRY_COUNT% GEQ %MAX_RETRIES% (
+                            echo MySQL failed to start
+                            docker logs %MYSQL_CONTAINER%
+                            exit /b 1
+                        )
+                        echo Retrying... (%RETRY_COUNT%/%MAX_RETRIES%)
                         timeout /t 5 /nobreak
                         goto LOOP
                     )
@@ -162,7 +166,7 @@ pipeline {
                     --name %APP_CONTAINER% ^
                     --network spring-mysql-network ^
                     -p %APP_PORT%:%APP_PORT% ^
-                    -e SPRING_DATASOURCE_URL=jdbc:mysql://%MYSQL_CONTAINER%:%MYSQL_PORT%/%MYSQL_DATABASE%?useSSL=false^&allowPublicKeyRetrieval=true ^
+                    -e SPRING_DATASOURCE_URL=jdbc:mysql://%MYSQL_CONTAINER%:%MYSQL_CONTAINER_PORT%/%MYSQL_DATABASE%?useSSL=false^&allowPublicKeyRetrieval=true ^
                     -e SPRING_DATASOURCE_USERNAME=root ^
                     -e SPRING_DATASOURCE_PASSWORD=%MYSQL_ROOT_PASSWORD% ^
                     -e SPRING_JPA_HIBERNATE_DDL_AUTO=update ^
@@ -171,19 +175,10 @@ pipeline {
             }
         }
 
-        stage('Health Check') {
+        stage('Wait for Application') {
             steps {
-                echo '🏥 Performing health check...'
-                script {
-                    bat '''
-                    @echo off
-                    echo Waiting for application to start...
-                    timeout /t 20 /nobreak
-                    
-                    echo Checking application health...
-                    curl -f http://localhost:%APP_PORT%/actuator/health || curl -f http://localhost:%APP_PORT% || echo Application started, health endpoint may not be configured
-                    '''
-                }
+                echo '⏳ Waiting for Spring Boot to start...'
+                bat 'timeout /t 30 /nobreak'
             }
         }
 
@@ -194,10 +189,10 @@ pipeline {
             }
         }
 
-        stage('Display Logs') {
+        stage('Display Application Logs') {
             steps {
-                echo '📜 Application Logs (last 50 lines):'
-                bat 'docker logs --tail 50 %APP_CONTAINER%'
+                echo '📜 Application Logs:'
+                bat 'docker logs --tail 100 %APP_CONTAINER%'
             }
         }
 
@@ -209,50 +204,35 @@ pipeline {
             echo '✅ Deployment Successful!'
             echo '✅ ═══════════════════════════════════════'
             echo "✅ Application: http://localhost:${APP_PORT}"
-            echo "✅ MySQL: localhost:${MYSQL_PORT}"
+            echo "✅ MySQL (Docker): localhost:${MYSQL_HOST_PORT}"
+            echo "✅ MySQL (Internal): ${MYSQL_CONTAINER}:${MYSQL_CONTAINER_PORT}"
             echo '✅ ═══════════════════════════════════════'
         }
         
         failure {
-            echo '❌ ═══════════════════════════════════════'
-            echo '❌ Deployment Failed!'
-            echo '❌ ═══════════════════════════════════════'
-            echo '❌ Check the logs above for errors'
-            
+            echo '❌ Deployment Failed - See diagnostics below'
             script {
                 bat '''
                 @echo off
-                echo.
-                echo Collecting failure information...
-                echo.
-                echo === Spring Boot Container Logs ===
-                docker logs --tail 100 %APP_CONTAINER% 2>nul || echo Container not found
-                echo.
-                echo === MySQL Container Logs ===
-                docker logs --tail 50 %MYSQL_CONTAINER% 2>nul || echo Container not found
+                echo === Containers ===
+                docker ps -a
+                echo === Networks ===
+                docker network ls
+                echo === Port Usage ===
+                netstat -ano | findstr :3307
+                netstat -ano | findstr :8080
+                echo === App Logs ===
+                docker logs %APP_CONTAINER% 2>nul || echo No app container
+                echo === MySQL Logs ===
+                docker logs %MYSQL_CONTAINER% 2>nul || echo No MySQL container
                 '''
             }
         }
         
-        unstable {
-            echo '⚠️ Build is unstable - check test results'
-        }
-        
         always {
-            echo '📦 Archiving artifacts...'
-            archiveArtifacts artifacts: 'target/*.jar', 
-                            fingerprint: true,
-                            allowEmptyArchive: true
-            
-            echo '🧹 Cleaning up old Docker images...'
+            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true, allowEmptyArchive: true
             script {
-                bat '''
-                @echo off
-                REM Remove dangling images - ignore errors if none exist
-                FOR /F "tokens=*" %%i IN ('docker images -f "dangling=true" -q 2^>nul') DO docker rmi %%i 2>nul
-                echo Cleanup complete
-                exit /b 0
-                '''
+                bat 'FOR /F "tokens=*" %%i IN (\'docker images -f "dangling=true" -q 2^>nul\') DO docker rmi %%i 2>nul || exit /b 0'
             }
         }
     }

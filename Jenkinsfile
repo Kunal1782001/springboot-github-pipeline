@@ -70,7 +70,7 @@ pipeline {
             }
         }
 
-        stage('Stop Old Containers') {
+    stage('Stop Old Containers') {
     steps {
         echo '🛑 Stopping old containers...'
         script {
@@ -95,6 +95,7 @@ pipeline {
         }
     }
 }
+
 
 
         stage('Create Docker Network') {

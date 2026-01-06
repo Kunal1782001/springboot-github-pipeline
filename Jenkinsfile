@@ -1,9 +1,12 @@
 pipeline {
     agent any
 
+    options {
+        timeout(time: 20, unit: 'MINUTES')
+    }
+
     tools {
-        maven 'Maven'   
-        
+        maven 'Maven'
         jdk 'JDK17'
     }
 
@@ -15,10 +18,31 @@ pipeline {
 
     stages {
 
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
         stage('Checkout') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/Kunal1782001/springboot-github-pipeline.git'
+            }
+        }
+
+        stage('Build Info') {
+            steps {
+                echo "Job Name      : ${JOB_NAME}"
+                echo "Build Number  : ${BUILD_NUMBER}"
+                echo "Branch Name   : ${BRANCH_NAME}"
+                echo "Git Commit    : ${GIT_COMMIT}"
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                bat 'mvn test'
             }
         }
 
@@ -59,6 +83,12 @@ pipeline {
     }
 
     post {
+        success {
+            echo " Deployment completed successfully"
+        }
+        failure {
+            echo " Deployment failed – check logs"
+        }
         always {
             archiveArtifacts artifacts: 'target/*.war', fingerprint: true
         }

@@ -53,16 +53,16 @@ pipeline {
             }
         }
 
-        stage('Docker Deploy') {
-            steps {
-                // Stop old container if running
-                bat 'docker stop springboot-container || echo Container not running'
-                bat 'docker rm springboot-container || echo Container removed'
+       stage('Docker Deploy') {
+    steps {
+        // Stop old container if running (ignore errors)
+        bat script: 'docker stop springboot-container', returnStatus: true
+        bat script: 'docker rm springboot-container', returnStatus: true
 
-                // Run new container
-                bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
-            }
-        }
+        // Run new container
+        bat 'docker run -d -p 8080:8080 --name springboot-container springboot-app'
+    }
+}
     }
 
    post {

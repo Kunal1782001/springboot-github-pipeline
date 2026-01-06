@@ -32,14 +32,14 @@ pipeline {
 
         stage('Clean Workspace') {
             steps {
-                echo '🧹 Cleaning workspace...'
+                echo '🧹 Cleaning workspace'
                 cleanWs()
             }
         }
 
         stage('Checkout') {
             steps {
-                echo '📥 Checking out code...'
+                echo '📥 Checking out code'
                 git branch: 'main',
                     url: 'https://github.com/Kunal1782001/springboot-github-pipeline.git'
             }
@@ -47,14 +47,14 @@ pipeline {
 
         stage('Build JAR') {
             steps {
-                echo '🔨 Building Spring Boot JAR...'
+                echo '🔨 Building JAR'
                 bat 'mvn clean package -DskipTests'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                echo '🐳 Building Docker image...'
+                echo '🐳 Building Docker image'
                 bat "docker build -t %DOCKER_IMAGE%:%BUILD_NUMBER% ."
                 bat "docker tag %DOCKER_IMAGE%:%BUILD_NUMBER% %DOCKER_IMAGE%:latest"
             }
@@ -62,29 +62,32 @@ pipeline {
 
         stage('Stop Old Containers') {
             steps {
-                echo '🛑 Stopping old containers...'
+                echo '🛑 Stopping old containers (safe)'
                 bat '''
-                docker stop %APP_CONTAINER% 2>nul
-                docker rm %APP_CONTAINER% 2>nul
-                docker stop %MYSQL_CONTAINER% 2>nul
-                docker rm %MYSQL_CONTAINER% 2>nul
+                docker ps -a --format "{{.Names}}" | findstr /R "^springboot-container$" >nul && (
+                    docker stop springboot-container && docker rm springboot-container
+                ) || echo App container not found
+
+                docker ps -a --format "{{.Names}}" | findstr /R "^mysql-db$" >nul && (
+                    docker stop mysql-db && docker rm mysql-db
+                ) || echo MySQL container not found
                 '''
             }
         }
 
         stage('Create Docker Network') {
             steps {
-                echo '🌐 Creating Docker network...'
+                echo '🌐 Creating Docker network'
                 bat '''
-                docker network rm %DOCKER_NETWORK% 2>nul
-                docker network create %DOCKER_NETWORK%
+                docker network rm spring-mysql-network >nul 2>&1
+                docker network create spring-mysql-network
                 '''
             }
         }
 
         stage('Deploy MySQL') {
             steps {
-                echo '🗄️ Starting MySQL container...'
+                echo '🗄️ Starting MySQL'
                 bat """
                 docker run -d ^
                   --name %MYSQL_CONTAINER% ^
@@ -99,23 +102,23 @@ pipeline {
 
         stage('Wait for MySQL') {
             steps {
-                echo '⏳ Waiting for MySQL to be ready...'
+                echo '⏳ Waiting for MySQL'
                 bat '''
                 timeout /t 30 /nobreak
-                docker exec %MYSQL_CONTAINER% mysqladmin ping -h localhost -u root -p%MYSQL_ROOT_PASSWORD%
+                docker exec mysql-db mysqladmin ping -h localhost -u root -proot
                 '''
             }
         }
 
         stage('Deploy Spring Boot App') {
             steps {
-                echo '🚀 Starting Spring Boot container...'
+                echo '🚀 Starting Spring Boot app'
                 bat """
                 docker run -d ^
                   --name %APP_CONTAINER% ^
                   --network %DOCKER_NETWORK% ^
                   -p %APP_PORT%:%APP_PORT% ^
-                  -e SPRING_DATASOURCE_URL=jdbc:mysql://%MYSQL_CONTAINER%:%MYSQL_CONTAINER_PORT%/%MYSQL_DATABASE%?useSSL=false^&allowPublicKeyRetrieval=true ^
+                  -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/%MYSQL_DATABASE%?useSSL=false^&allowPublicKeyRetrieval=true ^
                   -e SPRING_DATASOURCE_USERNAME=root ^
                   -e SPRING_DATASOURCE_PASSWORD=%MYSQL_ROOT_PASSWORD% ^
                   -e SPRING_JPA_HIBERNATE_DDL_AUTO=update ^
@@ -126,14 +129,14 @@ pipeline {
 
         stage('Wait for Application') {
             steps {
-                echo '⏳ Waiting for application startup...'
+                echo '⏳ Waiting for app startup'
                 bat 'timeout /t 30 /nobreak'
             }
         }
 
         stage('Show Status') {
             steps {
-                echo '📊 Container status'
+                echo '📊 Docker status'
                 bat 'docker ps'
             }
         }
@@ -141,8 +144,8 @@ pipeline {
 
     post {
         success {
-            echo '✅ DEPLOYMENT SUCCESSFUL!'
-            echo "🌐 App URL: http://localhost:${APP_PORT}"
+            echo '✅ DEPLOYMENT SUCCESSFUL'
+            echo "🌐 App: http://localhost:${APP_PORT}"
             echo "🗄️ MySQL: localhost:${MYSQL_HOST_PORT}"
         }
 
@@ -150,8 +153,8 @@ pipeline {
             echo '❌ DEPLOYMENT FAILED'
             bat '''
             docker ps -a
-            docker logs %MYSQL_CONTAINER% 2>nul
-            docker logs %APP_CONTAINER% 2>nul
+            docker logs mysql-db 2>nul || echo No MySQL logs
+            docker logs springboot-container 2>nul || echo No App logs
             '''
         }
 

@@ -71,31 +71,31 @@ pipeline {
         }
 
         stage('Stop Old Containers') {
-            steps {
-                echo '🛑 Stopping old containers...'
-                script {
-                    bat '''
-                    @echo off
-                    echo Stopping and removing old containers...
-                    
-                    FOR /F "tokens=*" %%i IN ('docker ps -aq -f "name=%APP_CONTAINER%"') DO (
-                        echo Stopping Spring Boot container %%i...
-                        docker stop %%i 2>nul
-                        docker rm %%i 2>nul
-                    )
-                    
-                    FOR /F "tokens=*" %%i IN ('docker ps -aq -f "name=%MYSQL_CONTAINER%"') DO (
-                        echo Stopping MySQL container %%i...
-                        docker stop %%i 2>nul
-                        docker rm %%i 2>nul
-                    )
-                    
-                    timeout /t 3 /nobreak
-                    echo Cleanup complete!
-                    '''
-                }
-            }
+    steps {
+        echo '🛑 Stopping old containers...'
+        script {
+            bat '''
+            @echo off
+            echo Cleaning up old containers...
+
+            docker ps -a --format "{{.Names}}" | findstr /R "^springboot-container$" >nul
+            IF %ERRORLEVEL% EQU 0 (
+                docker stop springboot-container
+                docker rm springboot-container
+            )
+
+            docker ps -a --format "{{.Names}}" | findstr /R "^mysql-db$" >nul
+            IF %ERRORLEVEL% EQU 0 (
+                docker stop mysql-db
+                docker rm mysql-db
+            )
+
+            echo Cleanup complete!
+            '''
         }
+    }
+}
+
 
         stage('Create Docker Network') {
             steps {

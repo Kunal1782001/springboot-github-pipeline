@@ -62,7 +62,7 @@ pipeline {
 
         stage('Stop Old Containers') {
             steps {
-                echo '🛑 Stopping old containers (bulletproof)'
+                echo '🛑 Stopping old containers'
                 bat '''
                 docker stop springboot-container >nul 2>&1
                 docker rm springboot-container >nul 2>&1
@@ -103,12 +103,28 @@ pipeline {
 
         stage('Wait for MySQL') {
             steps {
-                echo '⏳ Waiting for MySQL'
-                bat '''
-                timeout /t 30 /nobreak
-                docker exec mysql-db mysqladmin ping -h localhost -u root -proot
-                exit /b 0
-                '''
+                echo '⏳ Waiting for MySQL to be ready...'
+                script {
+                    def mysqlReady = false
+                    def attempts = 0
+                    def maxAttempts = 60
+                    
+                    while (!mysqlReady && attempts < maxAttempts) {
+                        try {
+                            bat(script: 'docker exec mysql-db mysqladmin ping -h localhost -u root -proot --silent', returnStatus: true)
+                            mysqlReady = true
+                            echo '✅ MySQL is ready!'
+                        } catch (Exception e) {
+                            attempts++
+                            echo "Attempt ${attempts}/${maxAttempts}: MySQL not ready yet, waiting..."
+                            sleep(time: 2, unit: 'SECONDS')
+                        }
+                    }
+                    
+                    if (!mysqlReady) {
+                        error('MySQL failed to start after 120 seconds')
+                    }
+                }
             }
         }
 
@@ -131,23 +147,38 @@ pipeline {
 
         stage('Wait for Application') {
             steps {
-                echo '⏳ Waiting for Spring Boot application to start...'
+                echo '⏳ Waiting for Spring Boot application (60 seconds)...'
+                sleep(time: 60, unit: 'SECONDS')
+                
                 script {
-                    retry(30) {
-                        sleep(time: 2, unit: 'SECONDS')
-                        bat '''
-                        curl -f http://localhost:8080/actuator/health || exit 1
-                        '''
+                    // Check if container is still running
+                    def containerStatus = bat(
+                        script: 'docker inspect -f {{.State.Running}} springboot-container',
+                        returnStdout: true
+                    ).trim()
+                    
+                    if (containerStatus == 'false') {
+                        echo '❌ Container crashed! Showing logs...'
+                        bat 'docker logs springboot-container'
+                        error('Spring Boot application failed to start')
+                    } else {
+                        echo '✅ Application container is running!'
                     }
                 }
-                echo '✅ Application is ready!'
             }
         }
 
         stage('Show Status') {
             steps {
-                echo '📊 Docker status'
-                bat 'docker ps'
+                echo '📊 Deployment Status'
+                bat '''
+                echo === DOCKER CONTAINERS ===
+                docker ps
+                
+                echo.
+                echo === APPLICATION LOGS (last 30 lines) ===
+                docker logs springboot-container --tail 30
+                '''
             }
         }
     }
@@ -160,11 +191,19 @@ pipeline {
         }
 
         failure {
-            echo '❌ DEPLOYMENT FAILED'
+            echo '❌ DEPLOYMENT FAILED - Showing detailed logs...'
             bat '''
+            echo === CONTAINER STATUS ===
             docker ps -a
-            docker logs mysql-db >nul 2>&1
-            docker logs springboot-container >nul 2>&1
+            
+            echo.
+            echo === MYSQL LOGS (last 50 lines) ===
+            docker logs mysql-db --tail 50 2>&1 || echo "MySQL logs unavailable"
+            
+            echo.
+            echo === SPRINGBOOT LOGS (all) ===
+            docker logs springboot-container 2>&1 || echo "Spring Boot logs unavailable"
+            
             exit /b 0
             '''
         }

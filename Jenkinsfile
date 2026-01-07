@@ -131,8 +131,16 @@ pipeline {
 
         stage('Wait for Application') {
             steps {
-                echo '⏳ Waiting for application startup'
-                bat 'timeout /t 30 /nobreak'
+                echo '⏳ Waiting for Spring Boot application to start...'
+                script {
+                    retry(30) {
+                        sleep(time: 2, unit: 'SECONDS')
+                        bat '''
+                        curl -f http://localhost:8080/actuator/health || exit 1
+                        '''
+                    }
+                }
+                echo '✅ Application is ready!'
             }
         }
 
